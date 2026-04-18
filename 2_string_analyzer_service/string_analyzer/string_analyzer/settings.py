@@ -78,7 +78,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'OPTIONS': {
             'service': 'string_analyzer_service',
-            'passfile': '.string_analyzer_pgpass'
+            'passfile': '/home/azeez/.pgpass'
         }
     }
 }
