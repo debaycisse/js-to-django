@@ -14,14 +14,22 @@ class StringAnalysisModel(models.Model):
         editable=False,
         max_length=64,
     )
-    value = models.CharField(editable=False)
+    # value = models.CharField(blank=False)
+    value = models.CharField(blank=True)
     created_at = models.DateTimeField(
-        default=utils.created_at, editable=False
+        editable=False, auto_now_add=True
     )
-    properties = models.JSONField(blank=True)
+    properties = models.JSONField(blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        '''Updates properties before saving an instance'''
+        '''
+        Updates 'properties' field before saving an instance
+
+        Args:
+            self - an instance of this model
+            *args - countless arguments
+            **kwargs - countless key/value arguments
+        '''
         str_obj = utils.StringProperties(self.value)
     
         if not self.id:

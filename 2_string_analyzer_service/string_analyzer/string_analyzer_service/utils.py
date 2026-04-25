@@ -1,8 +1,7 @@
-from django.db import models
+from rest_framework import status
 from datetime import datetime, timezone
 from hashlib import sha256
-from . import types_util as tu
-
+from . import custom_http_exceptions as cte
 
 def created_at() -> str:
     '''
@@ -17,6 +16,49 @@ def obtain_id(string_object: str) -> str:
     Computes and returns hash value of a given string object
     '''
     return sha256(string_object.encode('utf-8')).hexdigest()
+
+def validate_query_params(
+        condition: bool, 
+        detail: str = 'Invalid query parameter values or types'
+    ):
+    '''
+    Validates a given query parameter and
+    decides if it is valid or not (by raising an exception)
+
+    Args:
+        condition - a condition, used to make a decision
+        detail - description, used to describe every failed condition
+    '''
+    if condition is True:
+        raise cte.CustomException400(detail=detail)
+    
+def validate_filters(
+        condition: bool, 
+        detail: str = 'Query parsed but resulted in conflicting filters'
+    ):
+    '''
+    Validates a given filter object and decides if it is valid
+    or not (by raising an exception)
+
+    Args:
+        condition - a condition, used to make a decision
+        detail - description, used to describe every failed condition
+    '''
+    if condition is True:
+        raise cte.CustomException422(detail=detail)
+
+
+def get_filters(query: str | None = None):
+    '''
+    Obtains filtering object from a given string by
+    extracting keywords from it to make up the object
+
+    Args:
+        query - the query which contains the natural statement
+        from which keywords are extracted to make up a filtering object
+    '''
+    query_filter: dict | dict[str, str | int | bool] = FilterString(query=query)
+    return query_filter.filter()
 
 
 # Class for managing string object
@@ -89,3 +131,94 @@ class StringProperties:
             counter -= 1
             rev_string += self.value[counter]
         return rev_string
+
+
+class FilterString:
+    '''
+    Manages keywords extractions from string, received from
+    query parameter of an HTTP request
+    '''
+    def __init__(self, query: str = None):
+        if query is not None:
+            self.query = query
+            self.q_list = query.split(' ')
+        else:
+            self.query = None
+        self.filters = {}
+    
+    def __word_count_extract(self):
+        '''
+        Extracts and parses the word count
+        '''
+        if self.query.__contains__('word'):
+            self.filters['word_count'] = 1
+        elif self.query.__contains__('words'):
+            num_value = self.q_list[self.q_list.index('words') - 1]
+            self.filters['word_count'] = num_value
+
+    def __palindromic_extract(self):
+        '''
+        Extracts and parses palindrome's given value
+        '''
+        if self.query.__contains__('palindromic'):
+            self.filters['is_palindrome'] = True
+
+    def __min_length_extract(self):
+        '''
+        Extracts and parses minimum length value
+        '''
+        if (
+            self.query.__contains__('longer than') or \
+            self.query.__contains__('greater than')
+        ) and \
+            self.query.__contains__('characters'):
+            num_value = self.\
+                q_list[self.q_list.index('characters') - 1]
+            self.filters['min_length'] = int(num_value) + 1
+
+    def __max_length_extract(self):
+        '''
+        Extracts and parses maximum length value
+        '''
+        if (
+            self.query.__contains__('shorter than') or \
+            self.query.__contains__('lesser than') or \
+            self.query.__contains__('less than')
+        ) and self.query.__contains__('characters'):
+            num_value = self.\
+                q_list[self.q_list.index('characters') - 1]
+            self.filters['max_length'] = num_value
+
+    def __contains_character_extract(self):
+        '''
+        Extracts and parses contained characters
+        '''
+        if self.query.__contains__('contain') and \
+            self.query.__contains__('vowel'):
+            value = self.q_list[self.q_list.index('vowel') - 1]
+            if value == 'first' or value == '1st':
+                self.filters['contains_character'] = 'a'
+            elif value == 'second' or value == '2nd':
+                self.filters['contains_character'] = 'e'
+            elif value == 'third' or value == '3rd':
+                self.filters['contains_character'] = 'i'
+            elif value == 'fourth' or value == '4th':
+                self.filters['contains_character'] = 'o'
+            elif value == 'fifth' or value == '5th':
+                self.filters['contains_character'] = 'u'
+        elif self.query.__contains__('contain') and self.query.__contains__('letter'):
+            value = self.q_list[self.q_list.index('letter') + 1]
+            self.filters['contains_character'] = value
+
+    def filter(self):
+        '''
+        Carries out all the extracts to create a filter object that
+        contains all the extracted keywords and values
+        '''
+        if self.query is not None:
+            self.__palindromic_extract()
+            self.__word_count_extract()
+            self.__min_length_extract()
+            self.__max_length_extract()
+            self.__contains_character_extract()
+        return self.filters
