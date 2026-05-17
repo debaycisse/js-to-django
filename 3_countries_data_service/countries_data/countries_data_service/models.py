@@ -3,7 +3,7 @@ from uuid import uuid4
 
 # Create your models here.
 
-class country(models.Model):
+class Country(models.Model):
     # Model for a country instance
 
     id = models.UUIDField(
