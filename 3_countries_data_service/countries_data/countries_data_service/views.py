@@ -1,9 +1,9 @@
-from django.core.cache import cache
 from rest_framework.response import Response
-from rest_framework import viewsets, status
-import requests
+from rest_framework import viewsets, mixins, status
+from rest_framework.decorators import action
 from .models import Country
 from .serializers import CountrySerializer
+from .utilities import get_countries_or_currency, generate_image
 
 
 
@@ -16,7 +16,7 @@ from .serializers import CountrySerializer
 [DONE]GET /countries?region=Africa&currency=NGN&sort=gdp_desc
 
 GET /countries/image
-POST /countries/refresh
+[DONE]POST /countries/refresh
 
 [DONE]GET /countries/:name
 [DONE]DELETE /countries/:name
@@ -25,7 +25,13 @@ GET /status
 
 """
 
-class CountryViewSets(viewsets.ViewSet):
+class CountryViewSets(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
 
     """
     CountryViewSets contains all the view handlers for the country
@@ -99,3 +105,23 @@ class CountryViewSets(viewsets.ViewSet):
                 {'message': 'country not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+    
+    @action(methods=['POST'], detail=False)
+    def refresh(self, request, format=None):
+        '''
+        handles or processes the POST /countries/refresh
+        request for upserting countries
+        
+        :param self: the view's instance or object
+        :param request: http request's object
+        :param format: user's preferred view format
+        '''
+        countries = get_countries_or_currency(is_country=True)
+        serializer = CountrySerializer(countries, many=True)
+        if serializer.is_valid():
+            serializer.save()
+        
+        # generate the image
+        generate_image()
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
