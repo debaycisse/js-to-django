@@ -1,9 +1,8 @@
-from django.core.cache import cache
-from os import getenv
 from random import randint
 from rest_framework import serializers
 import requests
 from countries_data.countries_data_service.models import Country
+from .utilities import get_countries_or_currency
 
 
 class CountryListSerializer(serializers.ListSerializer):
@@ -24,7 +23,8 @@ class CountryListSerializer(serializers.ListSerializer):
                 country_instance.exchange_rate = None
                 country_instance.estimated_gdp = 0.0
             else:
-                currencies_rate = self.get_exchange_rate()
+                currencies_rate = get_countries_or_currency(
+                    is_currency=True)
                 currency_code = data.get('currencies')[0].get('code')
                 exchange_rate = currencies_rate.get(currency_code, None)
 
@@ -64,32 +64,6 @@ class CountryListSerializer(serializers.ListSerializer):
         '''
         rand_num = randint(1000, 2000)
         return population * rand_num / exch_rate
-    
-    def get_exchange_rate(self):
-        '''
-        calls an external exhcange rate api
-        '''
-
-        exchange_rate_cache_key = getenv('EXCHANGE_RATE_CACHE_KEY')
-        exchange_rate_api = getenv('CURRENCY_API')
-        cache_time_to_live = getenv('CACHE_TTL')
-
-        exchange_rate_data = cache.get(exchange_rate_cache_key)
-
-        if exchange_rate_data is None:
-
-            exchange_rate_data = requests.get(
-                exchange_rate_api,
-                timeout=12
-            ).json()
-
-            cache.set(
-                exchange_rate_cache_key,
-                exchange_rate_data,
-                cache_time_to_live
-            )
-
-        return exchange_rate_data.rates
 
 
 # Country serializer
