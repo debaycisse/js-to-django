@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework.response import Response
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
@@ -120,7 +121,7 @@ class CountryViewSets(viewsets.GenericViewSet):
 
         # construct the image's name and contained directory
         image_name = 'summary.png'
-        dir_name = 'cache'
+        dir_name = settings.MEDIA_ROOT
         image_path = path.join(dir_name, image_name)
 
         # Handle a missing file
@@ -132,7 +133,7 @@ class CountryViewSets(viewsets.GenericViewSet):
         
         # contruct fully-qualify url path to the image
         image_url = request.build_absolute_uri(
-            f'/cache/{image_name}'
+            f'{settings.MEDIA_URL}{image_name}'
         )
 
         return Response(
