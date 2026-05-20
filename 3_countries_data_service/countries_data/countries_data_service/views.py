@@ -25,18 +25,14 @@ GET /status
 
 """
 
-class CountryViewSets(
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.CreateModelMixin,
-    mixins.DestroyModelMixin,
-    viewsets.GenericViewSet,
-):
+class CountryViewSets(viewsets.GenericViewSet):
 
     """
     CountryViewSets contains all the view handlers for the country
     """
 
+    queryset = Country.objects.all()
+    serializer_class = CountrySerializer
     lookup_field = 'name'
 
     def list(self, request, format=None):
@@ -55,15 +51,14 @@ class CountryViewSets(
 
         if sort_value == 'gdp_desc':
             order_value = '-estimated_gdp'
-
-        queryset = Country\
-            .objects\
+        
+        queryset = self.get_queryset()\
             .filter(region=region, currency_code=currency)\
             .order_by(order_value)
         
-        serializer = CountrySerializer(queryset, many=True)
+        serializer = self.get_serializer(queryset, many=True)
         
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
     def retrieve(self, request, name=None, format=None):
         '''
@@ -75,10 +70,10 @@ class CountryViewSets(
         :param name: the url parameter that holds the country's name
         :param format: user's preferred view format
         '''
-        country = Country.objects.get(name=name)
-        serializer = CountrySerializer(country)
+        country = self.get_object()
+        serializer = self.get_serializer(country)
 
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
     def destroy(self, request, name=None, format=None):
         '''
@@ -92,10 +87,9 @@ class CountryViewSets(
         '''
         try:
 
-            country = Country.objects.get(name=name)
+            country = self.get_object()
+            country.delete()
 
-            if country is not None:
-                country.delete()
             return Response(
                 status=status.HTTP_204_NO_CONTENT
             )
@@ -105,7 +99,7 @@ class CountryViewSets(
                 {'message': 'country not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-    
+
     @action(methods=['POST'], detail=False)
     def refresh(self, request, format=None):
         '''
@@ -117,11 +111,13 @@ class CountryViewSets(
         :param format: user's preferred view format
         '''
         countries = get_countries_or_currency(is_country=True)
-        serializer = CountrySerializer(countries, many=True)
+        serializer = self.get_serializer(countries, many=True)
         if serializer.is_valid():
             serializer.save()
         
         # generate the image
         generate_image()
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED)
