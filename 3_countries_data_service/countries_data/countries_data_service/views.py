@@ -3,33 +3,19 @@ from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from .models import Country
 from .serializers import CountrySerializer
-from .utilities import get_countries_or_currency, generate_image
+from .utilities import (
+    get_countries_or_currency,
+    generate_image,
+    get_last_refreshed_at,
+    get_country_counts)
+from os import path
 
-
-
-"""
-
-[DONE]GET /countries
-[DONE]GET /countries?region=Africa
-[DONE]GET /countries?currency=NGN
-[DONE]GET /countries?sort=gdp_desc
-[DONE]GET /countries?region=Africa&currency=NGN&sort=gdp_desc
-
-GET /countries/image
-[DONE]POST /countries/refresh
-
-[DONE]GET /countries/:name
-[DONE]DELETE /countries/:name
-
-GET /status
-
-"""
 
 class CountryViewSets(viewsets.GenericViewSet):
 
-    """
+    '''
     CountryViewSets contains all the view handlers for the country
-    """
+    '''
 
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
@@ -37,7 +23,7 @@ class CountryViewSets(viewsets.GenericViewSet):
 
     def list(self, request, format=None):
         '''
-        handles the below GET request to /countries with
+        handles the GET request that's sent to /countries with
         its filtering and sorting
         
         :param self: the view instance or object
@@ -121,3 +107,64 @@ class CountryViewSets(viewsets.GenericViewSet):
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED)
+    
+    @action(methods=['GET'], detail=False)
+    def image(self, request, format=None):
+        '''
+        handles the request that's sent to GET /countries/image
+        
+        :param self: the view's instance or object
+        :param request: http request object
+        :param format: user prefered response format
+        '''
+
+        # construct the image's name and contained directory
+        image_name = 'summary.png'
+        dir_name = 'cache'
+        image_path = path.join(dir_name, image_name)
+
+        # Handle a missing file
+        if not image_path.exists(image_path):
+            return Response(
+                {'error': 'Summary image not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # contruct fully-qualify url path to the image
+        image_url = request.build_absolute_uri(
+            f'/cache/{image_name}'
+        )
+
+        return Response(
+            { 'image': image_url },
+            status=status.HTTP_200_OK)
+
+class CountryStatusViewSets(viewsets.GenericViewSet):
+
+    '''
+    CountryStatusViewSets houses the implementation of the
+    view handler for the status the country resource
+    '''
+    serializer_class = CountrySerializer
+    queryset = Country.objects.all()
+
+    @action(methods=['GET'], detail=False)
+    def status(self, request, format=None):
+        '''
+        handles the GET request that's sent to /status url
+        
+        :param self: the view instance or object
+        :param request: http request object
+        :param format: user prefered response format
+        '''
+
+        total_countries = get_country_counts()
+        last_refreshed_at = get_last_refreshed_at()
+
+        return Response(
+            {
+                'total_countries': total_countries,
+                'last_refreshed_at': last_refreshed_at,
+            },
+            status=status.HTTP_200_OK
+        )
