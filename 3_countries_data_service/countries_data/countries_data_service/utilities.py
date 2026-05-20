@@ -41,11 +41,12 @@ def get_countries_or_currency(is_country=False, is_currency=False):
     data = cache.get(cache_key)
 
     if data is None:
+        # send request to the api
         data = requests.get(
             external_api,
             timeout=12
         ).json()
-
+        # cache the obtained data
         cache.set(
             cache_key,
             data,
@@ -71,7 +72,7 @@ def generate_image():
 
     # construct the texts to make up the image contents (texts)
     total_countries = get_country_counts()
-    top_five = get_top_five()
+    top_five = get_top_five_by_estimate()
     last_refreshed_at = get_last_refreshed_at()
 
     _texts = [
@@ -90,7 +91,7 @@ def generate_image():
     
     _image.save(output_path)
 
-def get_top_five():
+def get_top_five_by_estimate():
     '''
     obtains and the returns the top five
     countries, based on their gdp
@@ -121,6 +122,6 @@ def get_last_refreshed_at():
     obtains the latest refreshed_at's time and date
     '''
 
-    qset = Country.objects.order_by('-last_refreshed_at').first()
-    serializer = CountrySerializer(qset)
+    queryset = Country.objects.order_by('-last_refreshed_at').first()
+    serializer = CountrySerializer(queryset)
     return serializer.data.get('last_refreshed_at')
