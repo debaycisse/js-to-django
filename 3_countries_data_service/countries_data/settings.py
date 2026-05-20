@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from dotenv import load_dotenv
 from pathlib import Path
-from os import getenv
+from os import getenv, path
 
 load_dotenv()
 
@@ -135,3 +135,6 @@ CACHES = {
 }
 
 APPEND_SLASH = False
+
+MEDIA_URL = '/cache/'
+MEDIA_ROOT = path.join(BASE_DIR, 'countries_data', 'cache')
