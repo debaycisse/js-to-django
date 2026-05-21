@@ -1,8 +1,8 @@
 from random import randint
 from rest_framework import serializers
-import requests
 from countries_data.countries_data_service.models import Country
 from .utilities import get_countries_or_currency
+from datetime import datetime, timezone
 
 
 class CountryListSerializer(serializers.ListSerializer):
@@ -15,6 +15,8 @@ class CountryListSerializer(serializers.ListSerializer):
             validated_data - a validated list of country data
         '''
         country_objects = []
+
+        # print('<<<<<<<<<<<<<<<<<<<<<<<< Running >>>>>>>>>>>>>>>>>>')
 
         for data in validated_data:
             country_instance = Country(**data)
@@ -72,7 +74,7 @@ class CountrySerializer(serializers.ModelSerializer):
     currencies = serializers.ListField(write_only=True)
     exchange_rate = serializers.FloatField(read_only=True)
     estimated_gdp = serializers.FloatField(read_only=True)
-    last_refreshed_at = serializers.DateTimeField(read_only=True)
+    # last_refreshed_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Country
@@ -84,7 +86,10 @@ class CountrySerializer(serializers.ModelSerializer):
         list_serializer_class = CountryListSerializer
 
     def to_representation(self, instance):
-        output = super().to_representation(instance=instance)
-        output['last_refreshed_at'] = instance\
-            .last_refreshed_at.strftime('%Y-%m-%dT%H:%M:%SZ')
-        return output
+        # output = super().to_representation(instance=instance)
+        # print("<<<<<<- Instance ->>>> ", instance)
+        # instance['last_refreshed_at'] = instance\
+        #     .last_refreshed_at.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        instance['last_refreshed_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        return instance

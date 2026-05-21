@@ -1,15 +1,16 @@
+from os import path
 from django.conf import settings
 from rest_framework.response import Response
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from .models import Country
 from .serializers import CountrySerializer
-from .utilities import (
-    get_countries_or_currency,
+from .utilities import get_countries_or_currency
+from .image_utils import (
     generate_image,
     get_last_refreshed_at,
-    get_country_counts)
-from os import path
+    get_country_counts
+)
 
 
 class CountryViewSets(viewsets.GenericViewSet):
@@ -77,9 +78,7 @@ class CountryViewSets(viewsets.GenericViewSet):
             country = self.get_object()
             country.delete()
 
-            return Response(
-                status=status.HTTP_204_NO_CONTENT
-            )
+            return Response(status=status.HTTP_204_NO_CONTENT)
         
         except Country.DoesNotExist:
             return Response(
@@ -98,7 +97,8 @@ class CountryViewSets(viewsets.GenericViewSet):
         :param format: user's preferred view format
         '''
         countries = get_countries_or_currency(is_country=True)
-        serializer = self.get_serializer(countries, many=True)
+        # print('countries : ', countries[0])
+        serializer = self.get_serializer(data=countries, many=True)
         if serializer.is_valid():
             serializer.save()
         
@@ -107,7 +107,8 @@ class CountryViewSets(viewsets.GenericViewSet):
 
         return Response(
             serializer.data,
-            status=status.HTTP_201_CREATED)
+            status=status.HTTP_201_CREATED
+        )
     
     @action(methods=['GET'], detail=False)
     def image(self, request, format=None):
@@ -138,7 +139,8 @@ class CountryViewSets(viewsets.GenericViewSet):
 
         return Response(
             { 'image': image_url },
-            status=status.HTTP_200_OK)
+            status=status.HTTP_200_OK
+        )
 
 class CountryStatusViewSets(viewsets.GenericViewSet):
 
