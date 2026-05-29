@@ -138,3 +138,7 @@ APPEND_SLASH = False
 
 MEDIA_URL = '/cache/'
 MEDIA_ROOT = path.join(BASE_DIR, 'countries_data', 'cache')
+
+# REST_FRAMEWOEK = {
+#     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.'
+# }

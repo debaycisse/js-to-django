@@ -1,11 +1,12 @@
-from random import randint
 from rest_framework import serializers
 from countries_data.countries_data_service.models import Country
-from .utilities import get_countries_or_currency
-from datetime import datetime, timezone
 
 
 class CountryListSerializer(serializers.ListSerializer):
+    '''
+    handles the creation of multiple countries data, using
+    its create() method and hits the database once
+    '''
 
     def create(self, validated_data):
         '''
@@ -14,82 +15,44 @@ class CountryListSerializer(serializers.ListSerializer):
         Args:
             validated_data - a validated list of country data
         '''
+
         country_objects = []
 
-        # print('<<<<<<<<<<<<<<<<<<<<<<<< Running >>>>>>>>>>>>>>>>>>')
-
-        for data in validated_data:
-            country_instance = Country(**data)
-            if len(data.currencies) < 1:
-                country_instance.currency_code = None
-                country_instance.exchange_rate = None
-                country_instance.estimated_gdp = 0.0
-            else:
-                currencies_rate = get_countries_or_currency(
-                    is_currency=True)
-                currency_code = data.get('currencies')[0].get('code')
-                exchange_rate = currencies_rate.get(currency_code, None)
-
-                country_instance['currency_code'] = currency_code
-                country_instance['exchange_rate'] = exchange_rate
-                country_instance['estimated_gdp'] = self\
-                    .get_estimated_gdp(
-                        data.get('population'),
-                        exchange_rate
-                    ) if exchange_rate is not None else None
-            
+        for country in validated_data:
+            country_instance = Country(**country)
             country_objects.append(country_instance)
         
         return Country.objects.bulk_create(
             country_objects,
             update_conflicts=True,
-            unique_fields=['name'], 
             update_fields=[
                 'capital', 'region', 'population', 'currency_code',
                 'exchange_rate', 'estimated_gdp', 'flag_url',
             ]
         )
 
-    def get_estimated_gdp(self, population, exch_rate):
-        '''
-        computes and returns estimated gdp of a given population
-
-        Args:
-            population - the population value for
-            the estimate to be computed
-
-            exch_rate - the exchange rate with which
-            the computation is done
-        
-        Returns:
-            the float value of the computation
-        '''
-        rand_num = randint(1000, 2000)
-        return population * rand_num / exch_rate
-
-
 # Country serializer
 class CountrySerializer(serializers.ModelSerializer):
-    currency_code = serializers.CharField(read_only=True)
-    currencies = serializers.ListField(write_only=True)
-    exchange_rate = serializers.FloatField(read_only=True)
-    estimated_gdp = serializers.FloatField(read_only=True)
-    # last_refreshed_at = serializers.DateTimeField(read_only=True)
+    '''
+    handles both serialization and deserialization process
+    for the country's instance and data
+    '''
 
+    name = serializers.CharField(validators=[])
+    
     class Meta:
         model = Country
         fields = [
             'id', 'name', 'capital', 'region', 'population',
-            'currency_code', 'currencies', 'exchange_rate',
-            'estimated_gdp', 'flag_url', 'last_refreshed_at'
+            'currency_code', 'exchange_rate', 'estimated_gdp',
+            'flag_url', 'last_refreshed_at'
         ]
         list_serializer_class = CountryListSerializer
 
     def to_representation(self, instance):
-        # output = super().to_representation(instance=instance)
-        # print("<<<<<<- Instance ->>>> ", instance)
-        # instance['last_refreshed_at'] = instance\
-        #     .last_refreshed_at.strftime('%Y-%m-%dT%H:%M:%SZ')
+        if instance.last_refreshed_at:
 
-        instance['last_refreshed_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-        return instance
+            instance.last_refreshed_at = instance\
+                .last_refreshed_at.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        return super().to_representation(instance=instance)

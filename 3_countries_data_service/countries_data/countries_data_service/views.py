@@ -1,11 +1,13 @@
 from os import path
+import requests
+from urllib.parse import urlparse
 from django.conf import settings
 from rest_framework.response import Response
-from rest_framework import viewsets, mixins, status
+from rest_framework import viewsets, mixins, status, serializers
 from rest_framework.decorators import action
 from .models import Country
 from .serializers import CountrySerializer
-from .utilities import get_countries_or_currency
+from .utilities import get_countries_or_currency, parse_countries
 from .image_utils import (
     generate_image,
     get_last_refreshed_at,
@@ -16,7 +18,8 @@ from .image_utils import (
 class CountryViewSets(viewsets.GenericViewSet):
 
     '''
-    CountryViewSets contains all the view handlers for the country
+    Country view sets contains all the view handlers
+    for the countries resource
     '''
 
     queryset = Country.objects.all()
@@ -26,37 +29,36 @@ class CountryViewSets(viewsets.GenericViewSet):
     def list(self, request, format=None):
         '''
         handles the GET request that's sent to /countries with
-        its filtering and sorting
-        
-        :param self: the view instance or object
-        :param request: http request object
-        :param format: user prefered response format
+        its filtering and sorting keywords
         '''
         region = request.query_params.get('region')
         currency = request.query_params.get('currency')
         sort_value = request.query_params.get('sort')
-        order_value = 'estimated_gdp'
+        order_value = 'name'
 
         if sort_value == 'gdp_desc':
             order_value = '-estimated_gdp'
+        elif sort_value == 'gdp_asc':
+            order_value = 'estimated_gdp'
+
+        countries_qs = self.get_queryset()
+
+        if region:
+            countries_qs = self.get_queryset().filter(region=region)
         
-        queryset = self.get_queryset()\
-            .filter(region=region, currency_code=currency)\
-            .order_by(order_value)
-        
-        serializer = self.get_serializer(queryset, many=True)
+        if currency:
+            countries_qs = countries_qs.filter(currency_code=currency)
+
+        countries_qs = countries_qs.order_by(order_value)
+
+        serializer = self.get_serializer(countries_qs, many=True)
         
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     def retrieve(self, request, name=None, format=None):
         '''
         handles or processes a GET /countries/:name
-        request for a single country (resource)
-        
-        :param self: the view's instance or object
-        :param request: http request's object
-        :param name: the url parameter that holds the country's name
-        :param format: user's preferred view format
+        request by otaining a single country (resource) instance
         '''
         country = self.get_object()
         serializer = self.get_serializer(country)
@@ -66,12 +68,7 @@ class CountryViewSets(viewsets.GenericViewSet):
     def destroy(self, request, name=None, format=None):
         '''
         handles or processes the DELETE /countries/:name
-        request for a signle country (resource)
-        
-        :param self: the view's instance or object
-        :param request: http request's object
-        :param name: the url parameter that holds the country's name
-        :param format: user's preferred view format
+        request by deleting a single country (resource) instance
         '''
         try:
 
@@ -90,34 +87,51 @@ class CountryViewSets(viewsets.GenericViewSet):
     def refresh(self, request, format=None):
         '''
         handles or processes the POST /countries/refresh
-        request for upserting countries
-        
-        :param self: the view's instance or object
-        :param request: http request's object
-        :param format: user's preferred view format
+        request for updating existing countries and
+        inserting new ones (upserting)
         '''
-        countries = get_countries_or_currency(is_country=True)
-        # print('countries : ', countries[0])
-        serializer = self.get_serializer(data=countries, many=True)
-        if serializer.is_valid():
-            serializer.save()
-        
-        # generate the image
-        generate_image()
+        try:
+            countries = get_countries_or_currency(is_country=True)
+            countries = parse_countries(countries)
 
-        return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED
-        )
-    
+            serializer = self.get_serializer(data=countries, many=True)
+
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+            
+                # generate the image that contains country's status
+                generate_image()
+
+                return Response(
+                    serializer.data,
+                    status=status.HTTP_201_CREATED
+                )
+
+        except requests.exceptions.ConnectTimeout as e:
+            api_name = urlparse(e.request.url).netloc
+            return Response(
+                {
+                    'error': 'External data source unavailable',
+                    'details': f'Could not fetch data from {api_name}'
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        except serializers.ValidationError as e:
+            return Response(
+                {
+                    'error': 'Validation failed',
+                    'details': e.get_full_details()
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
     @action(methods=['GET'], detail=False)
     def image(self, request, format=None):
         '''
-        handles the request that's sent to GET /countries/image
-        
-        :param self: the view's instance or object
-        :param request: http request object
-        :param format: user prefered response format
+        handles the request that's sent to GET /countries/image route and
+        serves the url with which one can view an image that contains some
+        statistics about the countries cache
         '''
 
         # construct the image's name and contained directory
@@ -126,13 +140,13 @@ class CountryViewSets(viewsets.GenericViewSet):
         image_path = path.join(dir_name, image_name)
 
         # Handle a missing file
-        if not image_path.exists(image_path):
+        if not path.exists(image_path):
             return Response(
                 {'error': 'Summary image not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # contruct fully-qualify url path to the image
+        # contruct an absolute url path to the image
         image_url = request.build_absolute_uri(
             f'{settings.MEDIA_URL}{image_name}'
         )
@@ -145,8 +159,8 @@ class CountryViewSets(viewsets.GenericViewSet):
 class CountryStatusViewSets(viewsets.GenericViewSet):
 
     '''
-    CountryStatusViewSets houses the implementation of the
-    view handler for the status the country resource
+    This view houses the implementation of the /status
+    view handler which handles the status of the countries
     '''
     serializer_class = CountrySerializer
     queryset = Country.objects.all()
@@ -154,11 +168,8 @@ class CountryStatusViewSets(viewsets.GenericViewSet):
     @action(methods=['GET'], detail=False)
     def status(self, request, format=None):
         '''
-        handles the GET request that's sent to /status url
-        
-        :param self: the view instance or object
-        :param request: http request object
-        :param format: user prefered response format
+        handles the GET request that's sent to /status route and
+        returns the status of the countries cache
         '''
 
         total_countries = get_country_counts()
