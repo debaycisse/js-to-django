@@ -33,12 +33,19 @@ def get_countries_or_currency(**kwargs):
     
     cache_ttl = int(getenv('CACHE_TTL'))
     if kwargs.get('is_country') :
-        cache_key = getenv('COUNTRY_CACHE_KEY')
+        cache_key = getenv(
+            'COUNTRY_CACHE_KEY', 
+            'https://restcountries.com/v2/all?fields=name,capital,\
+            region,population,flag,currencies'
+        )
         external_api = getenv('COUNTRY_API')
     elif kwargs.get('is_currency'):
         cache_key = getenv('EXCHANGE_RATE_CACHE_KEY')
-        external_api = getenv('CURRENCY_API')
-    
+        external_api = getenv(
+            'CURRENCY_API',
+            'https://open.er-api.com/v6/latest/USD'
+        )
+
     data = cache.get(cache_key)
 
     if data is None:
